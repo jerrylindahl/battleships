@@ -1,11 +1,12 @@
 Trying to learn some Erlang by implementing a network battleship game.
 
 Compile and run with
-  jerry@Loke:~$ erl
-  1>c(battleships).
-  {ok,battleships}
-  2>battleships:listen(1050).
-  
+```
+    jerry@Loke:~$ erl
+    1>c(battleships).
+    {ok,battleships}
+    2>battleships:listen(1050).
+  ```
 
 From other console:
 >telnet localhost 1050
