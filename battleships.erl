@@ -55,12 +55,12 @@ loop(Socket, Listener, Enemy, Grid, EnemyGrid) ->
 			loop(Socket, Listener, Enemy, Grid, EnemyGrid);
 		
 		%TODO: rate limit torpedos to take turns
-    %opponent sent a torpedo
+		%opponent sent a torpedo
 		{torpedo, {X, Y}} ->
 			gen_tcp:send(Socket, io_lib:format("Incoming torpedo: ~c~p\n", [getCharFromX(X),Y])),
-      
+			
 			{NewGrid, TorpedoResult} = incomingTorpedo(X, Y, Grid),
-      Enemy ! {torpedoResult, TorpedoResult, {X,Y}},
+			Enemy ! {torpedoResult, TorpedoResult, {X,Y}},
 			sendGridToPlayer(Socket, NewGrid),
 			
 			case countSurvivors(NewGrid) of
@@ -68,15 +68,15 @@ loop(Socket, Listener, Enemy, Grid, EnemyGrid) ->
 						Enemy ! {you_win};
 				_-> loop(Socket, Listener, Enemy, NewGrid, EnemyGrid)
 			end;
-    
-    %Opponent tells us if we hit or missed
-    {torpedoResult, Result, {X, Y}} ->
-      gen_tcp:send(Socket, io_lib:format("Torpedo ~p!\n", [Result])),
-      NewEnemyGrid = EnemyGrid#{{X,Y} => Result},
-      sendGridToPlayer(Socket, NewEnemyGrid),
-      loop(Socket, Listener, Enemy, Grid, NewEnemyGrid);
-      
-      
+		
+		%Opponent tells us if we hit or missed
+		{torpedoResult, Result, {X, Y}} ->
+			gen_tcp:send(Socket, io_lib:format("Torpedo ~p!\n", [Result])),
+			NewEnemyGrid = EnemyGrid#{{X,Y} => Result},
+			sendGridToPlayer(Socket, NewEnemyGrid),
+			loop(Socket, Listener, Enemy, Grid, NewEnemyGrid);
+			
+			
 		{you_win} ->
 			gen_tcp:send(Socket, "YOU WON THE GAME!");
 		
@@ -90,13 +90,13 @@ loop(Socket, Listener, Enemy, Grid, EnemyGrid) ->
 
 %update own grid with opponents torpedos
 incomingTorpedo(X, Y, Grid)->
-  Spot = maps:get({X,Y}, Grid, empty),
-  
-  case Spot of
-    ship->{Grid#{{X,Y} => hit}, hit};
-    empty->{Grid#{{X,Y} => miss}, miss}
-  end.
-      
+	Spot = maps:get({X,Y}, Grid, empty),
+	
+	case Spot of
+		ship->{Grid#{{X,Y} => hit}, hit};
+		empty->{Grid#{{X,Y} => miss}, miss}
+	end.
+			
 
 countSurvivors(Grid)->
 	Pred = fun(_,V) -> V =:= ship end,
@@ -121,7 +121,7 @@ getXYFromBin(Bin)->
 
 %Convert an X coordinate to letter for printing
 getCharFromX(X)->
-  X+65.
+	X+65.
 
 listenToPlayer(Parent, Socket) ->
 	case gen_tcp:recv(Socket, 0) of
@@ -151,11 +151,11 @@ sendGridToPlayer(Socket, Grid, X, Y) when X =< ?GRID_SIZE, Y < ?GRID_SIZE->
 			Spot =:= empty  -> gen_tcp:send(Socket, "-");
 			Spot =:= hit		-> gen_tcp:send(Socket, "X");
 			Spot =:= ship		-> gen_tcp:send(Socket, "#");
-      Spot =:= miss		-> gen_tcp:send(Socket, "O");
+			Spot =:= miss		-> gen_tcp:send(Socket, "O");
 			true						-> ok %shouldn't happen, throw error?
 	end,
 	
-  %If end of line, send newline and increase Y counter
+	%If end of line, send newline and increase Y counter
 	%ugly? refactor?
 	Add = if X =:= (?GRID_SIZE-1) ->
 		gen_tcp:send(Socket, "\n"),
