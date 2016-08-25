@@ -32,10 +32,10 @@ accept(LSocket, Player1, Player2) ->
 loop(Socket, 0, 0) ->
 	Self = self(),
 	Listener = spawn(fun() -> listenToPlayer(Self, Socket) end),
-	loop(Socket, Listener, 0, #{}).
+	loop(Socket, Listener, 0, #{}, #{}).
 	
 % listen to messages from players listen loop and respond
-loop(Socket, Listener, Enemy, Grid) ->
+loop(Socket, Listener, Enemy, Grid, EnemyGrid) ->
 	receive
 		{init, NewEnemy} ->
 			gen_tcp:send(Socket, "Enemy connected!\n"),
@@ -45,28 +45,38 @@ loop(Socket, Listener, Enemy, Grid) ->
 			
 			gen_tcp:send(Socket, "Send placement of your ship.\n"),
 			
-			loop(Socket, Listener, NewEnemy, Grid);
+			loop(Socket, Listener, NewEnemy, Grid, EnemyGrid);
 			
 		{message, Message} ->
 			case maps:size(Grid) of
-				0-> loop(Socket, Listener, Enemy, putShip(Grid, Message));
+				0-> loop(Socket, Listener, Enemy, putShip(Grid, Message), EnemyGrid);
 				_-> Enemy ! {torpedo, getXYFromBin(Message)}
 			end,
-			loop(Socket, Listener, Enemy, Grid);
+			loop(Socket, Listener, Enemy, Grid, EnemyGrid);
 		
 		%TODO: rate limit torpedos to take turns
-		%TODO: keep track of opponent grid
+    %opponent sent a torpedo
 		{torpedo, {X, Y}} ->
-			gen_tcp:send(Socket, io_lib:format("Incoming torpedo hit: ~p,~p\n", [X,Y])),
-			NewGrid = Grid#{{X,Y} => hit},
+			gen_tcp:send(Socket, io_lib:format("Incoming torpedo: ~c~p\n", [getCharFromX(X),Y])),
+      
+			{NewGrid, TorpedoResult} = incomingTorpedo(X, Y, Grid),
+      Enemy ! {torpedoResult, TorpedoResult, {X,Y}},
 			sendGridToPlayer(Socket, NewGrid),
 			
 			case countSurvivors(NewGrid) of
 				0-> gen_tcp:send(Socket, "LOST THE GAME!"),
 						Enemy ! {you_win};
-				_-> loop(Socket, Listener, Enemy, NewGrid)
+				_-> loop(Socket, Listener, Enemy, NewGrid, EnemyGrid)
 			end;
-			
+    
+    %Opponent tells us if we hit or missed
+    {torpedoResult, Result, {X, Y}} ->
+      gen_tcp:send(Socket, io_lib:format("Torpedo ~p!\n", [Result])),
+      NewEnemyGrid = EnemyGrid#{{X,Y} => Result},
+      sendGridToPlayer(Socket, NewEnemyGrid),
+      loop(Socket, Listener, Enemy, Grid, NewEnemyGrid);
+      
+      
 		{you_win} ->
 			gen_tcp:send(Socket, "YOU WON THE GAME!");
 		
@@ -77,6 +87,16 @@ loop(Socket, Listener, Enemy, Grid) ->
 			Enemy ! {disconnect},
 			ok
 	end.
+
+%update own grid with opponents torpedos
+incomingTorpedo(X, Y, Grid)->
+  Spot = maps:get({X,Y}, Grid, empty),
+  
+  case Spot of
+    ship->{Grid#{{X,Y} => hit}, hit};
+    empty->{Grid#{{X,Y} => miss}, miss}
+  end.
+      
 
 countSurvivors(Grid)->
 	Pred = fun(_,V) -> V =:= ship end,
@@ -93,10 +113,15 @@ putShip(Grid, Message)->
 
 %get a set of coordinates from user message
 %TODO: error handling
+%TODO: handle both "a1" and "A1"
 getXYFromBin(Bin)->
 	X = binary:at(Bin, 0) - 65,
 	Y = binary:at(Bin, 1) -  48,
 	{X,Y}.
+
+%Convert an X coordinate to letter for printing
+getCharFromX(X)->
+  X+65.
 
 listenToPlayer(Parent, Socket) ->
 	case gen_tcp:recv(Socket, 0) of
@@ -124,11 +149,13 @@ sendGridToPlayer(Socket, Grid, X, Y) when X =< ?GRID_SIZE, Y < ?GRID_SIZE->
 	
 	if
 			Spot =:= empty  -> gen_tcp:send(Socket, "-");
-			Spot =:= hit		-> gen_tcp:send(Socket, "O");
-			Spot =:= ship		-> gen_tcp:send(Socket, "X");
+			Spot =:= hit		-> gen_tcp:send(Socket, "X");
+			Spot =:= ship		-> gen_tcp:send(Socket, "#");
+      Spot =:= miss		-> gen_tcp:send(Socket, "O");
 			true						-> ok %shouldn't happen, throw error?
 	end,
 	
+  %If end of line, send newline and increase Y counter
 	%ugly? refactor?
 	Add = if X =:= (?GRID_SIZE-1) ->
 		gen_tcp:send(Socket, "\n"),
