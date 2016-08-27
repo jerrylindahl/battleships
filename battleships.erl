@@ -41,7 +41,7 @@ loop(Socket, Listener, Enemy, Grid, EnemyGrid) ->
 			gen_tcp:send(Socket, "Enemy connected!\n"),
 			gen_tcp:send(Socket, io_lib:format("Grid size is: ~p\n", [?GRID_SIZE])),
 			
-			sendGridToPlayer(Socket, Grid),
+			sendGridToPlayer(Socket, Grid, EnemyGrid),
 			
 			gen_tcp:send(Socket, "Send placement of your ship.\n"),
 			
@@ -57,11 +57,11 @@ loop(Socket, Listener, Enemy, Grid, EnemyGrid) ->
 		%TODO: rate limit torpedos to take turns
 		%opponent sent a torpedo
 		{torpedo, {X, Y}} ->
-			gen_tcp:send(Socket, io_lib:format("Incoming torpedo: ~c~p\n", [getCharFromX(X),Y])),
+			gen_tcp:send(Socket, io_lib:format("Incoming torpedo: ~c~p\n", [getCharFromX(X), Y])),
 			
 			{NewGrid, TorpedoResult} = incomingTorpedo(X, Y, Grid),
 			Enemy ! {torpedoResult, TorpedoResult, {X,Y}},
-			sendGridToPlayer(Socket, NewGrid),
+			sendGridToPlayer(Socket, NewGrid, EnemyGrid),
 			
 			case countSurvivors(NewGrid) of
 				0-> gen_tcp:send(Socket, "LOST THE GAME!"),
@@ -71,9 +71,9 @@ loop(Socket, Listener, Enemy, Grid, EnemyGrid) ->
 		
 		%Opponent tells us if we hit or missed
 		{torpedoResult, Result, {X, Y}} ->
-			gen_tcp:send(Socket, io_lib:format("Torpedo ~p!\n", [Result])),
+			gen_tcp:send(Socket, io_lib:format("Torpedo ~c~p ~p!\n", [getCharFromX(X), Y, Result])),
 			NewEnemyGrid = EnemyGrid#{{X,Y} => Result},
-			sendGridToPlayer(Socket, NewEnemyGrid),
+			sendGridToPlayer(Socket, Grid, NewEnemyGrid),
 			loop(Socket, Listener, Enemy, Grid, NewEnemyGrid);
 			
 			
@@ -134,13 +134,17 @@ listenToPlayer(Parent, Socket) ->
 	end. 
 
 %kick off sending
-sendGridToPlayer(Socket, Grid) ->
-	gen_tcp:send(Socket, "  ABCDE\n"),
-	sendGridToPlayer(Socket, Grid, 0, 0).
+sendGridToPlayer(Socket, Grid, Grid2) ->
+	gen_tcp:send(Socket, "  ABCDE   ABCDE\n"),
+	sendGridToPlayer(Socket, Grid, Grid2, 0, 0).
 
 %send grid to player, recursively walks through the grid row wise
-sendGridToPlayer(Socket, Grid, X, Y) when X =< ?GRID_SIZE, Y < ?GRID_SIZE->
-	Spot = maps:get({X,Y}, Grid, empty),
+%prints them side by side so will walk X up to 2*GRID_SIZE
+sendGridToPlayer(Socket, Grid, Grid2, X, Y) when X =< ?GRID_SIZE*2, Y =< ?GRID_SIZE->
+	Spot = if X =< ?GRID_SIZE ->
+    maps:get({X,Y}, Grid, empty);
+    true -> maps:get({(X rem ?GRID_SIZE),Y}, Grid2, empty)
+  end,
 	
 	if X =:= 0 ->
 		gen_tcp:send(Socket, io_lib:format("~p ", [Y]));
@@ -155,15 +159,21 @@ sendGridToPlayer(Socket, Grid, X, Y) when X =< ?GRID_SIZE, Y < ?GRID_SIZE->
 			true						-> ok %shouldn't happen, throw error?
 	end,
 	
+  %if space between grids send spaces
+  if X =:= ((?GRID_SIZE)-1) ->
+		gen_tcp:send(Socket, "   ");
+    true -> ok
+  end,
+  
 	%If end of line, send newline and increase Y counter
 	%ugly? refactor?
-	Add = if X =:= (?GRID_SIZE-1) ->
+	Add = if X =:= ((?GRID_SIZE)*2-1) ->
 		gen_tcp:send(Socket, "\n"),
 		1;
 		true -> 0
 	end,
 	
-	sendGridToPlayer(Socket, Grid, (X+1) rem ?GRID_SIZE, Y + Add);
+	sendGridToPlayer(Socket, Grid, Grid2, (X+1) rem (?GRID_SIZE*2), Y + Add);
 
-sendGridToPlayer(_,_,_,_)->
+sendGridToPlayer(_,_,_,_,_)->
 	ok.
