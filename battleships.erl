@@ -5,7 +5,7 @@
 
 -define(TCP_OPTIONS, [binary, {packet, 0}, {active, false}, {reuseaddr, true}]).
 
--define(GRID_SIZE, 5). %max 9 for now
+-define(GRID_SIZE, 6). %max 9 for now
 
 -ifndef(PRINT).
 -define(PRINT(Var), io:format("DEBUG: ~p:~p - ~p~n~n ~p~n~n", [?MODULE, ?LINE, ??Var, Var])).
@@ -135,22 +135,24 @@ listenToPlayer(Parent, Socket) ->
 
 %kick off sending
 sendGridToPlayer(Socket, Grid, Grid2) ->
-	gen_tcp:send(Socket, "  ABCDE   ABCDE\n"),
+	sendGridLetterIndex(Socket),
 	sendGridToPlayer(Socket, Grid, Grid2, 0, 0).
 
-%send grid to player, recursively walks through the grid row wise
-%prints them side by side so will walk X up to 2*GRID_SIZE
-sendGridToPlayer(Socket, Grid, Grid2, X, Y) when X =< ?GRID_SIZE*2, Y =< ?GRID_SIZE->
-	Spot = if X =< ?GRID_SIZE ->
-    maps:get({X,Y}, Grid, empty);
-    true -> maps:get({(X rem ?GRID_SIZE),Y}, Grid2, empty)
-  end,
-	
+	%send grid to player, recursively walks through the grid row wise
+	%prints them side by side so will walk X up to 2*GRID_SIZE
+	sendGridToPlayer(Socket, Grid, Grid2, X, Y) when X =< ?GRID_SIZE*2, Y =< ?GRID_SIZE->
+	%send which row we are on for edge of game board
 	if X =:= 0 ->
 		gen_tcp:send(Socket, io_lib:format("~p ", [Y]));
 		true -> ok
 	end,
-	
+
+	%TODO: break out into sendRow function.
+	Spot = if X =< ?GRID_SIZE ->
+		maps:get({X,Y}, Grid, empty);
+		true -> maps:get({(X rem ?GRID_SIZE),Y}, Grid2, empty)
+	end,
+
 	if
 			Spot =:= empty  -> gen_tcp:send(Socket, "-");
 			Spot =:= hit		-> gen_tcp:send(Socket, "X");
@@ -159,12 +161,12 @@ sendGridToPlayer(Socket, Grid, Grid2, X, Y) when X =< ?GRID_SIZE*2, Y =< ?GRID_S
 			true						-> ok %shouldn't happen, throw error?
 	end,
 	
-  %if space between grids send spaces
-  if X =:= ((?GRID_SIZE)-1) ->
+	%if end of first grid send spaces before printing next grid
+	if X =:= ((?GRID_SIZE)-1) ->
 		gen_tcp:send(Socket, "   ");
-    true -> ok
-  end,
-  
+		true -> ok
+	end,
+	
 	%If end of line, send newline and increase Y counter
 	%ugly? refactor?
 	Add = if X =:= ((?GRID_SIZE)*2-1) ->
@@ -177,3 +179,8 @@ sendGridToPlayer(Socket, Grid, Grid2, X, Y) when X =< ?GRID_SIZE*2, Y =< ?GRID_S
 
 sendGridToPlayer(_,_,_,_,_)->
 	ok.
+
+% send the ABCDEF... index above the grid
+sendGridLetterIndex(Socket)->
+	Letters = lists:seq(65, 64+?GRID_SIZE),
+	gen_tcp:send(Socket, io_lib:format("  ~s   ~s\n", [Letters, Letters])).
