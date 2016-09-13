@@ -1,13 +1,15 @@
 -module(battleships).
 -author('Jerry Lindahl <jerry@copypasteit.se>').
 
--export([listen/1]).
+-export([listen/0, listen/1]).
 
 -define(TCP_OPTIONS, [binary, {packet, 0}, {active, false}, {reuseaddr, true}]).
 
 -include("constants.hrl").
 
-% Call echo:listen(Port) to start the service.
+listen() ->
+	listen(1050).
+
 listen(Port) ->
 	{ok, LSocket} = gen_tcp:listen(Port, ?TCP_OPTIONS),
 	accept(LSocket).
