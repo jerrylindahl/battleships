@@ -2,10 +2,10 @@ Trying to learn some Erlang by implementing a network battleship game.
 
 Compile and run with
 ```
+    jerry@Loke:~$ sh cleanbuild.sh
+      2 tests passed.
     jerry@Loke:~$ erl
-    1>c(battleships),c(input),c(output).
-    {ok,output}
-    2>battleships:listen(1050).
+    1>battleships:listen().
   ```
 
 From other console:
