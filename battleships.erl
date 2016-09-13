@@ -1,7 +1,7 @@
 -module(battleships).
 -author('Jerry Lindahl <jerry@copypasteit.se>').
 
--export([listen/1, boundCheckCoordinates/2]).
+-export([listen/1]).
 
 -define(TCP_OPTIONS, [binary, {packet, 0}, {active, false}, {reuseaddr, true}]).
 
@@ -57,7 +57,7 @@ loop(Socket, Listener, Enemy, Grid, EnemyGrid) ->
 		%TODO: rate limit torpedos to take turns
 		%opponent sent a torpedo
 		{torpedo, {X, Y}} ->
-			gen_tcp:send(Socket, io_lib:format("Incoming torpedo: ~c~p\n", [getCharFromX(X), Y])),
+			gen_tcp:send(Socket, io_lib:format("Incoming torpedo: ~c~p\n", [input:getCharFromX(X), Y])),
 			
 			{NewGrid, TorpedoResult} = incomingTorpedo(X, Y, Grid),
 			Enemy ! {torpedoResult, TorpedoResult, {X,Y}},
@@ -71,7 +71,7 @@ loop(Socket, Listener, Enemy, Grid, EnemyGrid) ->
 		
 		%Opponent tells us if we hit or missed
 		{torpedoResult, Result, {X, Y}} ->
-			gen_tcp:send(Socket, io_lib:format("Torpedo ~c~p ~p!\n", [getCharFromX(X), Y, Result])),
+			gen_tcp:send(Socket, io_lib:format("Torpedo ~c~p ~p!\n", [input:getCharFromX(X), Y, Result])),
 			NewEnemyGrid = EnemyGrid#{{X,Y} => Result},
 			sendGridToPlayer(Socket, Grid, NewEnemyGrid),
 			loop(Socket, Listener, Enemy, Grid, NewEnemyGrid);
@@ -89,7 +89,7 @@ loop(Socket, Listener, Enemy, Grid, EnemyGrid) ->
 	end.
 
 handleTorpedoMessage(Enemy, Message, Socket)->
-	{ValidPlacement, X, Y} = getXYFromBin(Message),
+	{ValidPlacement, X, Y} = input:getXYFromBin(Message),
 	case ValidPlacement of
 		correct-> Enemy ! {torpedo, {X,Y}};
 		outside-> gen_tcp:send(Socket, "Invalid coordinates.");
@@ -116,43 +116,8 @@ countSurvivors(Grid)->
 %TODO: More than one ship
 %TODO: Change direction of ship placement
 putShip(Grid, Message)->
-	{ValidPlacement, X, Y} = getXYFromBin(Message),
+	{_, X, Y} = input:getXYFromBin(Message),
 	Grid#{{X, Y} => ship, {X+1,Y} => ship}.
-
-%get a set of coordinates from user message
-%TODO: error handling
-%TODO: handle both "a1" and "A1"
-getXYFromBin(Bin)->
-	X = binary:at(Bin, 0), % - 65,
-	Y = binary:at(Bin, 1), % -  48,
-	convertCoordinatesFromASCII(boundCheckCoordinates(X,Y)).
-
-
-convertCoordinatesFromASCII({ValidPlacement, X, Y})->
-	case ValidPlacement of
-		correct->{ValidPlacement, X-65, Y-48};
-		_->{ValidPlacement, X, Y}
-	end.
-	
-%User typed 'a' instead of 'A'
-boundCheckCoordinates(X, Y) when X < 123, X > 96 ->
-	boundCheckCoordinates(X-32, Y);
-
-%user is within grid
-boundCheckCoordinates(X, Y) when 
-	X < (65 + ?GRID_SIZE),
-	X >= 65,
-	Y =< (48 + ?GRID_SIZE),
-	Y >= 48 ->
-	{correct, X,Y};
-
-boundCheckCoordinates(X, Y) ->
-	{outside, X-65, Y-48}.
-
-
-%Convert an X coordinate to letter for printing
-getCharFromX(X)->
-	X+65.
 
 listenToPlayer(Parent, Socket) ->
 	case gen_tcp:recv(Socket, 0) of
