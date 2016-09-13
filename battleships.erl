@@ -1,7 +1,7 @@
 -module(battleships).
 -author('Jerry Lindahl <jerry@copypasteit.se>').
 
--export([listen/1]).
+-export([listen/1, boundCheckCoordinates/2]).
 
 -define(TCP_OPTIONS, [binary, {packet, 0}, {active, false}, {reuseaddr, true}]).
 
@@ -50,7 +50,7 @@ loop(Socket, Listener, Enemy, Grid, EnemyGrid) ->
 		{message, Message} ->
 			case maps:size(Grid) of
 				0-> loop(Socket, Listener, Enemy, putShip(Grid, Message), EnemyGrid);
-				_-> Enemy ! {torpedo, getXYFromBin(Message)}
+				_-> handleTorpedoMessage(Enemy, Message, Socket)
 			end,
 			loop(Socket, Listener, Enemy, Grid, EnemyGrid);
 		
@@ -88,6 +88,14 @@ loop(Socket, Listener, Enemy, Grid, EnemyGrid) ->
 			ok
 	end.
 
+handleTorpedoMessage(Enemy, Message, Socket)->
+	{ValidPlacement, X, Y} = getXYFromBin(Message),
+	case ValidPlacement of
+		correct-> Enemy ! {torpedo, {X,Y}};
+		outside-> gen_tcp:send(Socket, "Invalid coordinates.");
+		_      -> gen_tcp:send(Socket, "Error while processing message.")
+	end.
+
 %update own grid with opponents torpedos
 incomingTorpedo(X, Y, Grid)->
 	Spot = maps:get({X,Y}, Grid, empty),
@@ -108,16 +116,39 @@ countSurvivors(Grid)->
 %TODO: More than one ship
 %TODO: Change direction of ship placement
 putShip(Grid, Message)->
-	{X, Y} = getXYFromBin(Message),
+	{ValidPlacement, X, Y} = getXYFromBin(Message),
 	Grid#{{X, Y} => ship, {X+1,Y} => ship}.
 
 %get a set of coordinates from user message
 %TODO: error handling
 %TODO: handle both "a1" and "A1"
 getXYFromBin(Bin)->
-	X = binary:at(Bin, 0) - 65,
-	Y = binary:at(Bin, 1) -  48,
-	{X,Y}.
+	X = binary:at(Bin, 0), % - 65,
+	Y = binary:at(Bin, 1), % -  48,
+	convertCoordinatesFromASCII(boundCheckCoordinates(X,Y)).
+
+
+convertCoordinatesFromASCII({ValidPlacement, X, Y})->
+	case ValidPlacement of
+		correct->{ValidPlacement, X-65, Y-48};
+		_->{ValidPlacement, X, Y}
+	end.
+	
+%User typed 'a' instead of 'A'
+boundCheckCoordinates(X, Y) when X < 123, X > 96 ->
+	boundCheckCoordinates(X-32, Y);
+
+%user is within grid
+boundCheckCoordinates(X, Y) when 
+	X < (65 + ?GRID_SIZE),
+	X >= 65,
+	Y =< (48 + ?GRID_SIZE),
+	Y >= 48 ->
+	{correct, X,Y};
+
+boundCheckCoordinates(X, Y) ->
+	{outside, X-65, Y-48}.
+
 
 %Convert an X coordinate to letter for printing
 getCharFromX(X)->
@@ -138,9 +169,9 @@ sendGridToPlayer(Socket, Grid, Grid2) ->
 	sendGridLetterIndex(Socket),
 	sendGridToPlayer(Socket, Grid, Grid2, 0, 0).
 
-	%send grid to player, recursively walks through the grid row wise
-	%prints them side by side so will walk X up to 2*GRID_SIZE
-	sendGridToPlayer(Socket, Grid, Grid2, X, Y) when X =< ?GRID_SIZE*2, Y =< ?GRID_SIZE->
+%send grid to player, recursively walks through the grid row wise
+%prints them side by side so will walk X up to 2*GRID_SIZE
+sendGridToPlayer(Socket, Grid, Grid2, X, Y) when X =< ?GRID_SIZE*2, Y =< ?GRID_SIZE->
 	%send which row we are on for edge of game board
 	if X =:= 0 ->
 		gen_tcp:send(Socket, io_lib:format("~p ", [Y]));
