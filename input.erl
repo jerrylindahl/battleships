@@ -3,7 +3,7 @@
 
 -export([boundCheckCoordinates/2, getXYFromBin/1, getCharFromX/1]).
 
--define(GRID_SIZE, 6). %max 9 for now
+-include("constants.hrl").
 
 -define(ASCII_0, 48).
 -define(ASCII_A, 65).
