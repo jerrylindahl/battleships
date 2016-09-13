@@ -37,7 +37,7 @@ boundCheckCoordinates(X, Y) when X =< ?ASCII_z, X >= ?ASCII_a ->
 boundCheckCoordinates(X, Y) when 
 	X < (?ASCII_A + ?GRID_SIZE),
 	X >= ?ASCII_A,
-	Y =< (?ASCII_0 + ?GRID_SIZE),
+	Y < (?ASCII_0 + ?GRID_SIZE),
 	Y >= ?ASCII_0 ->
 	{correct, X,Y};
 
