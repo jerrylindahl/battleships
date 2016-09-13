@@ -45,7 +45,7 @@ loop(Socket, Listener, Enemy, Grid, EnemyGrid) ->
 			
 		{message, Message} ->
 			case maps:size(Grid) of
-				0-> loop(Socket, Listener, Enemy, putShip(Grid, Message), EnemyGrid);
+				0-> loop(Socket, Listener, Enemy, putShip(Grid, Message, Socket), EnemyGrid);
 				_-> handleTorpedoMessage(Enemy, Message, Socket)
 			end,
 			loop(Socket, Listener, Enemy, Grid, EnemyGrid);
@@ -60,7 +60,7 @@ loop(Socket, Listener, Enemy, Grid, EnemyGrid) ->
 			output:sendGridToPlayer(Socket, NewGrid, EnemyGrid),
 			
 			case countSurvivors(NewGrid) of
-				0-> gen_tcp:send(Socket, "LOST THE GAME!"),
+				0-> gen_tcp:send(Socket, "LOST THE GAME!\n"),
 						Enemy ! {you_win};
 				_-> loop(Socket, Listener, Enemy, NewGrid, EnemyGrid)
 			end;
@@ -74,10 +74,10 @@ loop(Socket, Listener, Enemy, Grid, EnemyGrid) ->
 			
 			
 		{you_win} ->
-			gen_tcp:send(Socket, "YOU WON THE GAME!");
+			gen_tcp:send(Socket, "YOU WON THE GAME!\n");
 		
 		{disconnect} ->
-			gen_tcp:send(Socket, "Your cowardly opponent has disconnected. You win!");
+			gen_tcp:send(Socket, "Your cowardly opponent has disconnected. You win!\n");
 		
 		{closed} ->
 			Enemy ! {disconnect},
@@ -88,7 +88,7 @@ handleTorpedoMessage(Enemy, Message, Socket)->
 	{ValidPlacement, X, Y} = input:getXYFromBin(Message),
 	case ValidPlacement of
 		correct-> Enemy ! {torpedo, {X,Y}};
-		outside-> gen_tcp:send(Socket, "Invalid coordinates.");
+		outside-> gen_tcp:send(Socket, "Invalid coordinates.\n");
 		_      -> gen_tcp:send(Socket, "Error while processing message.")
 	end.
 
@@ -110,12 +110,17 @@ countSurvivors(Grid)->
 
 %put a ship into a grid, assume to the right of location
 %only supports up to 9 in size
-%TODO: bound checking
 %TODO: More than one ship
 %TODO: Change direction of ship placement
-putShip(Grid, Message)->
-	{_, X, Y} = input:getXYFromBin(Message),
-	Grid#{{X, Y} => ship, {X+1,Y} => ship}.
+putShip(Grid, Message, Socket)->
+	{ValidPlacement, X, Y} = input:getXYFromBin(Message),
+	
+	case ValidPlacement of
+		correct-> Grid#{{X, Y} => ship, {X+1,Y} => ship};
+		_      ->
+			gen_tcp:send(Socket, "Incorrect placement, try again.\n"),
+			Grid
+	end.
 
 listenToPlayer(Parent, Socket) ->
 	case gen_tcp:recv(Socket, 0) of

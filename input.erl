@@ -25,8 +25,8 @@ getXYFromBin(Bin)->
 
 convertCoordinatesFromASCII({ValidPlacement, X, Y})->
 	case ValidPlacement of
-		correct->{ValidPlacement, X-?ASCII_A, Y-?ASCII_0};
-		_->{ValidPlacement, X, Y}
+		correct-> {ValidPlacement, X-?ASCII_A, Y-?ASCII_0};
+		_      -> {ValidPlacement, X, Y}
 	end.
 	
 %User typed 'a' instead of 'A'
@@ -42,7 +42,7 @@ boundCheckCoordinates(X, Y) when
 	{correct, X,Y};
 
 boundCheckCoordinates(X, Y) ->
-	{outside, X-?ASCII_A, Y-?ASCII_0}.
+	{outside, X, Y}.
 
 
 %Convert an X coordinate to letter for printing

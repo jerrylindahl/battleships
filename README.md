@@ -3,8 +3,8 @@ Trying to learn some Erlang by implementing a network battleship game.
 Compile and run with
 ```
     jerry@Loke:~$ erl
-    1>c(battleships).
-    {ok,battleships}
+    1>c(battleships),c(input),c(output).
+    {ok,output}
     2>battleships:listen(1050).
   ```
 

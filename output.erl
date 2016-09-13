@@ -8,7 +8,6 @@
 
 %kick off sending
 sendGridToPlayer(Socket, Grid, Grid2) ->
-  ?PRINT(Grid2),
 	sendGridLetterIndex(Socket),
 	sendGridToPlayer(Socket, Grid, Grid2, 0, 0).
 
