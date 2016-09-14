@@ -1,7 +1,7 @@
 -module(output).
 -author('Jerry Lindahl <jerry@copypasteit.se>').
 
--export([sendGridToPlayer/3, sendGridLetterIndex/1]).
+-export([sendGridToPlayer/3, sendGridLetterIndex/1, sendWaitMessage/1]).
 
 -include("constants.hrl").
 
@@ -57,3 +57,7 @@ sendGridToPlayer(_,_,_,_,_)->
 sendGridLetterIndex(Socket)->
 	Letters = lists:seq(65, 64+?GRID_SIZE),
 	gen_tcp:send(Socket, io_lib:format("  ~s   ~s\n", [Letters, Letters])).
+
+%send message to Player 1 that appears before second player has connected
+sendWaitMessage(Socket)->
+  gen_tcp:send(Socket, "Please wait for opponent to connect.\n").
