@@ -53,7 +53,7 @@ loop(Socket, Listener, Enemy, Grid, EnemyGrid) ->
 				%TODO: need to implement a state machine to keep track of when user is in 
 				%placing of ships stage and how many more they need to place, and to allow 
 				%retries when placing ships incorrectly (handled already but not in a user
-				%friendly way. Also needed for more useful messages like 
+				%friendly way). Also needed for more useful messages like 
 				%	"All ships placed, ready to fire!"
 				false-> loop(Socket, Listener, Enemy, putShip(Grid, Message, Socket), EnemyGrid);
 				true-> handleTorpedoMessage(Enemy, Message, Socket)
@@ -65,24 +65,40 @@ loop(Socket, Listener, Enemy, Grid, EnemyGrid) ->
 		%Gun blazin where you fire as fast as possible)
 		%opponent sent a torpedo
 		{torpedo, {X, Y}} ->
-			gen_tcp:send(Socket, io_lib:format("Incoming torpedo: ~c~p\n", [input:getCharFromX(X), Y])),
-			
-			{NewGrid, TorpedoResult} = incomingTorpedo(X, Y, Grid),
-			Enemy ! {torpedoResult, TorpedoResult, {X,Y}},
-			output:sendGridToPlayer(Socket, NewGrid, EnemyGrid),
-			
-			case countSurvivors(NewGrid) of
-				0-> gen_tcp:send(Socket, "LOST THE GAME!\n"),
-						Enemy ! {you_win};
-				_-> loop(Socket, Listener, Enemy, NewGrid, EnemyGrid)
+			case allShipsPlaced(Grid) of
+				false->
+					%shot at before placed all my ships? How rude!
+					Enemy ! {torpedoResult, notReady, {X,Y}},
+					loop(Socket, Listener, Enemy, Grid, EnemyGrid);
+				true->
+					gen_tcp:send(Socket, io_lib:format("Incoming torpedo: ~c~p\n", [input:getCharFromX(X), Y])),
+					
+					{NewGrid, TorpedoResult} = incomingTorpedo(X, Y, Grid),
+					Enemy ! {torpedoResult, TorpedoResult, {X,Y}},
+					output:sendGridToPlayer(Socket, NewGrid, EnemyGrid),
+					
+					case countSurvivors(NewGrid) of
+						0-> gen_tcp:send(Socket, "LOST THE GAME!\n"),
+								Enemy ! {you_win};
+						_-> loop(Socket, Listener, Enemy, NewGrid, EnemyGrid)
+					end
 			end;
 		
 		%Opponent tells us if we hit or missed
 		{torpedoResult, Result, {X, Y}} ->
-			gen_tcp:send(Socket, io_lib:format("Torpedo ~c~p ~p!\n", [input:getCharFromX(X), Y, Result])),
-			NewEnemyGrid = EnemyGrid#{{X,Y} => Result},
-			output:sendGridToPlayer(Socket, Grid, NewEnemyGrid),
-			loop(Socket, Listener, Enemy, Grid, NewEnemyGrid);
+			case Result of
+				notReady -> 
+					gen_tcp:send(Socket, "Opponent hasn't placed their ships yet."),
+					loop(Socket, Listener, Enemy, Grid, EnemyGrid);
+				alreadyShotHere ->
+					gen_tcp:send(Socket, "You already shot there."),
+					loop(Socket, Listener, Enemy, Grid, EnemyGrid);
+				_ ->
+					gen_tcp:send(Socket, io_lib:format("Torpedo ~c~p ~p!\n", [input:getCharFromX(X), Y, Result])),
+					NewEnemyGrid = EnemyGrid#{{X,Y} => Result},
+					output:sendGridToPlayer(Socket, Grid, NewEnemyGrid),
+					loop(Socket, Listener, Enemy, Grid, NewEnemyGrid)
+			end;
 			
 			
 		{you_win} ->
@@ -135,15 +151,24 @@ countSurvivors(Grid)->
 %only supports up to 9 in size
 %TODO: Change direction of ship placement
 putShip(Grid, Message, Socket)->
-	{ValidPlacement, X, Y} = input:getXYFromBin(Message),
+	{ValidPlacement1, X, Y} = input:getXYFromBin(Message),
+	%boundcheck work with ascii numbers so we need to convert up to ascii again.
+	{ValidPlacement2, _, _} = input:boundCheckCoordinates(X+1+?ASCII_A, Y+?ASCII_0),
+	Spot1 = maps:get({X,Y}, Grid, empty),
+	Spot2 = maps:get({X+1, Y}, Grid, empty),
 	
-	case ValidPlacement of
-		correct-> Grid#{{X, Y} => ship, {X+1,Y} => ship};
-		_      ->
+	if 
+		ValidPlacement1 =:= correct,
+		ValidPlacement2 =:= correct,
+		Spot1 =:= empty,
+		Spot2 =:= empty ->
+			Grid#{{X, Y} => ship, {X+1,Y} => ship};
+		true ->
 			gen_tcp:send(Socket, "Incorrect placement, try again.\n"),
 			Grid
 	end.
 
+%Loop to listen for player messages and pass them on to parent
 listenToPlayer(Parent, Socket) ->
 	case gen_tcp:recv(Socket, 0) of
 		{ok, Data} ->

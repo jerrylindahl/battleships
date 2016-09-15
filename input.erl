@@ -5,14 +5,6 @@
 
 -include("constants.hrl").
 
--define(ASCII_0, 48).
--define(ASCII_A, 65).
-
--define(ASCII_a, 97).
--define(ASCII_z, 122).
-
--define(ASCII_a_to_A, 32). %offset between A and a
-
 
 %get a set of coordinates from user message
 %TODO: error handling
