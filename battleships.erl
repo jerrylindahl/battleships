@@ -34,7 +34,7 @@ loop(Socket, 0, 0) ->
 	Self = self(),
 	Listener = spawn(fun() -> listenToPlayer(Self, Socket) end),
 	loop(Socket, Listener, 0, #{}, #{}).
-	
+
 % listen to messages from players listen loop and respond
 loop(Socket, Listener, Enemy, Grid, EnemyGrid) ->	
 	receive
@@ -88,10 +88,10 @@ loop(Socket, Listener, Enemy, Grid, EnemyGrid) ->
 		{torpedoResult, Result, {X, Y}} ->
 			case Result of
 				notReady -> 
-					gen_tcp:send(Socket, "Opponent hasn't placed their ships yet."),
+					gen_tcp:send(Socket, "Opponent hasn't placed their ships yet.\n"),
 					loop(Socket, Listener, Enemy, Grid, EnemyGrid);
 				alreadyShotHere ->
-					gen_tcp:send(Socket, "You already shot there."),
+					gen_tcp:send(Socket, "You already shot there.\n"),
 					loop(Socket, Listener, Enemy, Grid, EnemyGrid);
 				_ ->
 					gen_tcp:send(Socket, io_lib:format("Torpedo ~c~p ~p!\n", [input:getCharFromX(X), Y, Result])),
@@ -121,7 +121,7 @@ handleTorpedoMessage(Enemy, Message, Socket)->
 	case ValidPlacement of
 		correct-> Enemy ! {torpedo, {X,Y}};
 		outside-> gen_tcp:send(Socket, "Invalid coordinates.\n");
-		_      -> gen_tcp:send(Socket, "Error while processing message.")
+		_      -> gen_tcp:send(Socket, "Error while processing message.\n")
 	end.
 
 %update own grid with opponents torpedos
@@ -134,13 +134,13 @@ incomingTorpedo(X, Y, Grid)->
 		miss  ->{Grid, alreadyShotHere};
 		_     ->{Grid, invalid}
 	end.
-			
+
 %if user has placed all ships on the grid yet.
 allShipsPlaced(Grid)->
 	Size = maps:size(Grid),
 	if 
 		Size < 5 -> false;
-		true                -> true
+		true     -> true
 	end.
 
 countSurvivors(Grid)->
@@ -150,6 +150,7 @@ countSurvivors(Grid)->
 %put a ship into a grid, assume to the right of location
 %only supports up to 9 in size
 %TODO: Change direction of ship placement
+%TODO: different kinds of ships
 putShip(Grid, Message, Socket)->
 	{ValidPlacement1, X, Y} = input:getXYFromBin(Message),
 	%boundcheck work with ascii numbers so we need to convert up to ascii again.

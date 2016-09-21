@@ -27,11 +27,11 @@ sendGridToPlayer(Socket, Grid, Grid2, X, Y) when X =< ?GRID_SIZE*2, Y < ?GRID_SI
 	end,
 
 	if
-			Spot =:= empty  -> gen_tcp:send(Socket, "-");
-			Spot =:= hit		-> gen_tcp:send(Socket, "X");
-			Spot =:= ship		-> gen_tcp:send(Socket, "#");
-			Spot =:= miss		-> gen_tcp:send(Socket, "O");
-			true						-> ok %shouldn't happen, throw error?
+			Spot =:= empty -> gen_tcp:send(Socket, "-");
+			Spot =:= hit   -> gen_tcp:send(Socket, "X");
+			Spot =:= ship  -> gen_tcp:send(Socket, "#");
+			Spot =:= miss  -> gen_tcp:send(Socket, "O");
+			true           -> ok %shouldn't happen, throw error?
 	end,
 	
 	%if end of first grid send spaces before printing next grid
@@ -50,12 +50,13 @@ sendGridToPlayer(Socket, Grid, Grid2, X, Y) when X =< ?GRID_SIZE*2, Y < ?GRID_SI
 	
 	sendGridToPlayer(Socket, Grid, Grid2, (X+1) rem (?GRID_SIZE*2), Y + Add);
 
+%End case for function.
 sendGridToPlayer(_,_,_,_,_)->
 	ok.
 
 % send the ABCDEF... index above the grid
 sendGridLetterIndex(Socket)->
-	Letters = lists:seq(65, 64+?GRID_SIZE),
+	Letters = lists:seq(?ASCII_A, ?ASCII_A+?GRID_SIZE-1),
 	gen_tcp:send(Socket, io_lib:format("  ~s   ~s\n", [Letters, Letters])).
 
 %send message to Player 1 that appears before second player has connected

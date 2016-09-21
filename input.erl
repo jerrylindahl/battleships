@@ -7,11 +7,9 @@
 
 
 %get a set of coordinates from user message
-%TODO: error handling
-%TODO: handle both "a1" and "A1"
 getXYFromBin(Bin)->
-	X = binary:at(Bin, 0), % - 65,
-	Y = binary:at(Bin, 1), % -  48,
+	X = binary:at(Bin, 0),
+	Y = binary:at(Bin, 1),
 	convertCoordinatesFromASCII(boundCheckCoordinates(X,Y)).
 
 
